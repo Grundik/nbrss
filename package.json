@@ -1,0 +1,22 @@
+{
+  "name":"nbrss",
+  "version":"0.0.1",
+  "dependencies": {
+    "any-db": "*",
+    "feedparser": "*",
+    "html-entities": "*",
+    "iconv": "*",
+    "orm": "*",
+    "request": "*",
+    "simple-xmpp": "*",
+    "sql": "*",
+    "pg": "*",
+    "coffee-script": "*",
+    "node-stringprep": "*"
+  },
+  "devDependencies": {
+  },
+  "engines": {
+    "node": ">=0.8"
+  }
+}
