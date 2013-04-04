@@ -1,0 +1,11 @@
+xmpp:
+  jid: user@host/presence
+  password: password
+  host: host
+
+db:
+  adapter: postgres
+  user: user
+  password: password
+  name: database
+  host: localhost
