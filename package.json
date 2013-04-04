@@ -12,7 +12,9 @@
     "sql": "*",
     "pg": "*",
     "coffee-script": "*",
-    "node-stringprep": "*"
+    "node-stringprep": "*",
+    "config": "*",
+    "yaml": "*"
   },
   "devDependencies": {
   },
