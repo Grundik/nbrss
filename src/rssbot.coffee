@@ -3,6 +3,7 @@ anyDB = require 'any-db'
 xmpp = require 'simple-xmpp'
 usermgr = require './user'
 subsmgr = require './subscription'
+feedmgr = require './rss'
 
 shutdown = () ->
   console.log 'Shutting down...'
@@ -11,6 +12,7 @@ shutdown = () ->
 
 xmpp.on 'online', ->
   console.log 'XMPP connected'
+  feedmgr.scanFeeds
 
 xmpp.on 'chat', (from, message) ->
   message = message.trim()
@@ -42,6 +44,7 @@ xmpp.on 'chat', (from, message) ->
 
 xmpp.on 'error', (err) ->
   console.error err
+  feedmgr.stopScan
 
 xmpp.on 'subscribe', (from) ->
   console.log 'Accepting subscribe request from '+from
@@ -52,13 +55,14 @@ xmpp.on 'subscribe', (from) ->
 database = anyDB.createConnection CONFIG.db.adapter+'://' + CONFIG.db.user + ':' + CONFIG.db.password + '@' + CONFIG.db.host + '/' + CONFIG.db.name
 usermgr.setDatabase(database)
 
+feedmgr.init database, xmpp, 5*60000
 subsmgr.init database, ->
-  xmpp.connect(
-      jid         : CONFIG.xmpp.jid
-      password    : CONFIG.xmpp.password
-      host        : CONFIG.xmpp.host
-      port        : CONFIG.xmpp.port || 5222
-  )
+  xmpp.connect
+    jid         : CONFIG.xmpp.jid
+    password    : CONFIG.xmpp.password
+    host        : CONFIG.xmpp.host
+    port        : CONFIG.xmpp.port || 5222
+
 
 #xmpp.subscribe 'your.friend@gmail.com'
 # check for incoming subscription requests
