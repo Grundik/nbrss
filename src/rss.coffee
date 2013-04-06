@@ -3,6 +3,10 @@ Iconv = (require 'iconv').Iconv
 request = require 'request'
 crypto = require 'crypto'
 sql = require 'sql'
+fs = require 'fs'
+
+Entities = require('html-entities').XmlEntities
+entities = new Entities();
 
 tables = require './tables'
 
@@ -18,14 +22,69 @@ md5 = (data) ->
   hash.end data
   hash.digest 'hex'
 
+getString = (str, iconv)->
+  if iconv then iconv.convert(str).toString('UTF-8') else str.toString('utf8')
+
+initConvert = (ctype) ->
+  if !ctype
+    return
+  charset = /charset=(\S+)/i.exec ctype
+  if !charset || !charset[1]
+    return
+  charset = charset[1]
+  if charset && charset.toLowerCase() not in ['utf8', 'utf-8']
+    console.log "recoding from #{charset}"
+    return new Iconv(charset, 'UTF-8')
+  null
+
+
+outString = (str) ->
+   str = str.replace /<br\s*\/?>/ig, '\n'
+   entities.decode str
+
+onScanDone = ->
+  workers--
+  onEndScan()
+  null
+
 doScanFeed = (feed) ->
   workers++
   url = feed.url
   console.log 'Scanning feed '+url
   cache_file = './cache/'+md5(url)
-  request url, (error, response, body) ->
-    workers--
-  onEndScan()
+  fs.stat cache_file, (err, stat) ->
+    rdata =
+      url: url
+      headers: {}
+    if !err && stat && stat.mtime
+      rdata.headers['if-modified-since'] = stat.mtime.toUTCString()
+    olddata = md5 fs.readFileSync(cache_file)
+    request rdata, (error, response, body) ->
+      if response.statusCode != 200
+        console.log "Got #{response.statusCode} status"
+        return onScanDone()
+      if olddata == md5 body
+        console.log "Feed not changed"
+        return onScanDone()
+      fs.writeFile cache_file, body
+      if response && response.headers && response.headers['content-type']
+        conv = initConvert response.headers['content-type']
+      string_data = getString body, conv
+      string_data = string_data.replace /encoding=(['"]?[a-z0-9-]['"]?)/i, 'encoding="utf-8"'
+      feed.parseString string_data, (error, meta, articles) ->
+        console.dir meta
+        charset = null
+
+        if !articles
+          return onScanDone()
+
+        #conv = initConvert meta['#content-type'] if meta && meta['#content-type']
+
+        for article in articles
+          console.log '-----'
+          console.log outString(article.title) + ': '
+          console.log outString(article.description)
+        return onScanDone()
 
 onEndScan = ->
   if !autoScan || workers
