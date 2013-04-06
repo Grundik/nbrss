@@ -61,6 +61,8 @@ doScanFeed = (feed) ->
     if !err && stat && stat.mtime
       rdata.headers['if-modified-since'] = stat.mtime.toUTCString()
       olddata = md5 fs.readFileSync(cache_file)
+      console.log "Old mtime=#{rdata.headers['if-modified-since']}"
+      console.log "Old MD5=#{olddata}"
     request rdata, (error, response, body) ->
       if error
         console.log error
@@ -68,13 +70,15 @@ doScanFeed = (feed) ->
       if response.statusCode != 200
         console.log "Got #{response.statusCode} status"
         return onScanDone()
-      if olddata && olddata == md5 body
-        console.log "Feed not changed"
-        return onScanDone()
       #fs.writeFile cache_file, body
       if response && response.headers && response.headers['content-type']
         conv = initConvert response.headers['content-type']
       string_data = getString body, conv
+      newdata = md5(new Buffer string_data)
+      console.log "New MD5=#{newdata}"
+      if olddata && olddata == newdata
+        console.log "Feed not changed"
+        return onScanDone()
       fs.writeFile cache_file, string_data
       string_data = string_data.replace /encoding=(['"]?[a-z0-9-]['"]?)/i, 'encoding="utf-8"'
       Feedparser.parseString string_data, (error, meta, articles) ->
@@ -85,7 +89,16 @@ doScanFeed = (feed) ->
           return onScanDone()
 
         #conv = initConvert meta['#content-type'] if meta && meta['#content-type']
-
+        parsed_articles = []
+        title = "#{rss.title||''} #{rss.description||''}#{(rss.urls.empty?)?'':(' '+rss.urls.join('; '))}"
+        rss.items.reverse.each do |item|
+          if  (nil != item) && ( all || !item.seen )
+            urls=((item.urls.empty?)?'':(' '+item.urls.join('; '))).cleanhtml
+            ititle=(item.title||'').cleanhtml
+            text=(item.description||'').cleanhtml
+            deliver_delayed(title, "#{ititle}#{urls}\n\n#{text}")
+          end
+        end
         for article in articles
           console.log '-----'
           console.log outString(article.title) + ': '
