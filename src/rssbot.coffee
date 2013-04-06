@@ -57,11 +57,14 @@ usermgr.setDatabase(database)
 
 feedmgr.init database, xmpp, 5*60000
 subsmgr.init database, ->
+  feedmgr.scanFeeds()
+###
   xmpp.connect
     jid         : CONFIG.xmpp.jid
     password    : CONFIG.xmpp.password
     host        : CONFIG.xmpp.host
     port        : CONFIG.xmpp.port || 5222
+###
 
 
 #xmpp.subscribe 'your.friend@gmail.com'

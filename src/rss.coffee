@@ -1,4 +1,4 @@
-feed = require 'feedparser'
+Feedparser = require 'feedparser'
 Iconv = (require 'iconv').Iconv
 request = require 'request'
 crypto = require 'crypto'
@@ -19,7 +19,7 @@ scanDisabled = false
 
 md5 = (data) ->
   hash = crypto.createHash 'md5'
-  hash.end data
+  hash.update data
   hash.digest 'hex'
 
 getString = (str, iconv)->
@@ -56,14 +56,18 @@ doScanFeed = (feed) ->
     rdata =
       url: url
       headers: {}
+    olddata = null
     if !err && stat && stat.mtime
       rdata.headers['if-modified-since'] = stat.mtime.toUTCString()
-    olddata = md5 fs.readFileSync(cache_file)
+      olddata = md5 fs.readFileSync(cache_file)
     request rdata, (error, response, body) ->
+      if error
+        console.log error
+        return onScanDone()
       if response.statusCode != 200
         console.log "Got #{response.statusCode} status"
         return onScanDone()
-      if olddata == md5 body
+      if olddata && olddata == md5 body
         console.log "Feed not changed"
         return onScanDone()
       fs.writeFile cache_file, body
@@ -71,7 +75,7 @@ doScanFeed = (feed) ->
         conv = initConvert response.headers['content-type']
       string_data = getString body, conv
       string_data = string_data.replace /encoding=(['"]?[a-z0-9-]['"]?)/i, 'encoding="utf-8"'
-      feed.parseString string_data, (error, meta, articles) ->
+      Feedparser.parseString string_data, (error, meta, articles) ->
         console.dir meta
         charset = null
 
@@ -102,10 +106,12 @@ setScanInterval = (interval) ->
     autoScan = nulls
 
 scanFeeds = ->
+  console.log 'Scanning feeds'
   s = tables.subscriptions
   sql = s.select(s.star()).from(s)
-        .where('(SELECT COUNT(*) FROM subscription_users AS su WHERE su.subscription_id=subscriptions.id)>0')
+        .where('(SELECT COUNT(*) FROM subscriptions_users AS su WHERE su.subscription_id=subscriptions.id)>0')
   workers++
+  #console.log sql.toQuery()
   database.query(sql.toQuery()).on('row', (row) ->
     doScanFeed row
   ).on('end', ->
@@ -115,14 +121,15 @@ scanFeeds = ->
 
 
 module.exports =
-  init: (db, xmpp_, interval)
+  init: (db, xmpp_, interval) ->
     database = db
     xmpp = xmpp_
     setScanInterval interval
 
   scanFeeds: ->
+    console.log 'zzzzz'
     scanDisabled = false
-    scanFeeds
+    scanFeeds()
 
   stopScan: ->
     clearTimeout timeoutHandle
