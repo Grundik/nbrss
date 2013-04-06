@@ -56,6 +56,7 @@ doScanFeed = (feed) ->
     rdata =
       url: url
       headers: {}
+      encoding: null
     olddata = null
     if !err && stat && stat.mtime
       rdata.headers['if-modified-since'] = stat.mtime.toUTCString()
@@ -70,10 +71,11 @@ doScanFeed = (feed) ->
       if olddata && olddata == md5 body
         console.log "Feed not changed"
         return onScanDone()
-      fs.writeFile cache_file, body
+      #fs.writeFile cache_file, body
       if response && response.headers && response.headers['content-type']
         conv = initConvert response.headers['content-type']
       string_data = getString body, conv
+      fs.writeFile cache_file, string_data
       string_data = string_data.replace /encoding=(['"]?[a-z0-9-]['"]?)/i, 'encoding="utf-8"'
       Feedparser.parseString string_data, (error, meta, articles) ->
         console.dir meta
@@ -127,7 +129,6 @@ module.exports =
     setScanInterval interval
 
   scanFeeds: ->
-    console.log 'zzzzz'
     scanDisabled = false
     scanFeeds()
 
