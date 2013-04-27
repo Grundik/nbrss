@@ -53,9 +53,9 @@ xmpp.on 'subscribe', (from) ->
 
 #console.dir(anyDB)
 database = anyDB.createConnection CONFIG.db.adapter+'://' + CONFIG.db.user + ':' + CONFIG.db.password + '@' + CONFIG.db.host + '/' + CONFIG.db.name
-usermgr.setDatabase(database)
+usermgr.init database, xmpp
 
-feedmgr.init database, xmpp, 5*60000
+feedmgr.init database, xmpp, 5*60000, usermgr
 subsmgr.init database, ->
   feedmgr.scanFeeds()
 ###

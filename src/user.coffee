@@ -3,6 +3,7 @@ subsmgr = require './subscription'
 
 users = {}
 database = null
+xmpp = null
 
 tables = require './tables'
 
@@ -87,11 +88,30 @@ class User
         if !found
           cb(false) if cb
 
+  deliverFeed: (feed, all) ->
+    for f in feed
+      if !f.seen || all
+        xmpp.send @jid, f.subject+'\n'+f.message
+
+getUser = (jid, cb) ->
+  if users[jid]
+    cb users[jid]
+  else
+    users[jid] = new User(jid, cb)
+
+getBySubscription = (subscription_id, cb) ->
+    u = tables.users
+    su = tables.subscriptionsUsers
+    s = tables.subscriptions
+    sql = u.select(u.jid()).from(u.join(su).on(u.id.equals(su.user_id)))
+           .where(su.subscription_id.equals(subscription_id))
+    database.query(sql.toQuery()).on('row', (row) =>
+      getUser(row.jid, cb)
+    )
+
 module.exports =
-  getUser: (jid, cb) ->
-    if users[jid]
-      cb users[jid]
-    else
-      users[jid] = new User(jid, cb)
-  setDatabase: (db) ->
+  getUser: getUser
+  getBySubscription: getBySubscription
+  init: (db, xmpp_) ->
     database = db
+    xmpp = xmpp_

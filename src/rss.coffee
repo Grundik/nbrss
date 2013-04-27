@@ -16,6 +16,8 @@ timeoutHandle = null
 workers = 0
 autoScan = null
 scanDisabled = false
+userManager = null
+seenCache = []
 
 md5 = (data) ->
   hash = crypto.createHash 'md5'
@@ -24,6 +26,25 @@ md5 = (data) ->
 
 getString = (str, iconv)->
   if iconv then iconv.convert(str).toString('UTF-8') else str.toString('utf8')
+
+cleanHtml = (str) ->
+    str = str.replace(/<\/td>/ig, "</td> ")
+             .replace(/&lt;p&gt;/ig, "\n&lt;p&gt;")
+             .replace(/<p /ig, "\n<p ")
+             .replace(/<p>/ig, "\n<p>")
+             .replace(/<\/tr>/ig, "</tr>\n")
+             .replace(/<\/table>/ig, "</table>\n")
+             .replace(/<br \/>/ig, "\n")
+             .replace(/<li /ig, "\n * <li ")
+             .replace(/<li>/ig, "\n * <li>")
+             .replace(/<br>/ig, "\n")
+             .replace(/\s*<xhtml:link[^>]*href\s*=\s*['"]([^'"]+)['"][^>]*\/>\s*/ig, " \\1 ")
+             .replace(/\s+<\/?[^>]*>\s*/mg, " ") # вырезает все теги обрамленные пробелами вместе с этими пробелами
+             .replace(/<\/?[^>]*>/mg, "") # вырезает ваще все теги
+    str = entities.decode str
+    str = str.replace(/\r/g, "\n")
+             .replace(/\n\s*\n/g, "\n")
+    str
 
 initConvert = (ctype) ->
   if !ctype
@@ -42,12 +63,32 @@ outString = (str) ->
    str = str.replace /<br\s*\/?>/ig, '\n'
    entities.decode str
 
+checkSeen = (feed, hash, cb) ->
+  if seenCache.indexOf(hash)>=0 then
+    return cb true
+
+  mh = tables.messageHash
+  seen_sql =  m.select(m.time()).from(m)
+               .where(m.mhash().equals(hash))
+               .and(m.subscription_id().equals(feed.id))
+               .limit(1)
+  database.query(seen_sql.toQuery()).on 'end', (res) ->
+    if res and res.length
+      seenCache.push hash
+      insert = mh.insert
+        time: 'now'
+        subscription_id: feed.id
+        mhash: hash
+      database.query insert.toQuery()
+      return cb true
+    cb false
+
 onScanDone = ->
   workers--
   onEndScan()
   null
 
-doScanFeed = (feed) ->
+doScanFeed = (feed, initiator) ->
   workers++
   url = feed.url
   console.log 'Scanning feed '+url
@@ -80,30 +121,47 @@ doScanFeed = (feed) ->
         console.log "Feed not changed"
         return onScanDone()
       fs.writeFile cache_file, string_data
-      string_data = string_data.replace /encoding=(['"]?[a-z0-9-]['"]?)/i, 'encoding="utf-8"'
+      string_data = string_data.replace /encoding=(['"]?[a-z0-9-]+['"]?)/i, 'encoding="utf-8"'
+      #console.log(string_data)
       Feedparser.parseString string_data, (error, meta, articles) ->
-        console.dir meta
+        #console.dir meta
         charset = null
 
         if !articles
           return onScanDone()
 
-        #conv = initConvert meta['#content-type'] if meta && meta['#content-type']
         parsed_articles = []
-        title = "#{rss.title||''} #{rss.description||''}#{(rss.urls.empty?)?'':(' '+rss.urls.join('; '))}"
-        rss.items.reverse.each do |item|
-          if  (nil != item) && ( all || !item.seen )
-            urls=((item.urls.empty?)?'':(' '+item.urls.join('; '))).cleanhtml
-            ititle=(item.title||'').cleanhtml
-            text=(item.description||'').cleanhtml
-            deliver_delayed(title, "#{ititle}#{urls}\n\n#{text}")
-          end
-        end
+        title = (meta.title or '') + ' ' + (meta.description or '')
+        if meta.link
+          title += ' '+meta.link
+        title = cleanHtml(title)
+        toFill = articles.length
+        for article in articles.reverse
+          if  !article
+            continue
+          urls = cleanHtml(article.link || '')
+          ititle = cleanHtml(item.title || '')
+          text = cleanHtml(item.description || '')
+          hash = md5 title + ititle + urls + text
+          seen = false
+          checkSeen feed, hash, (seen) ->
+            parsed_articles.push
+              title: title
+              message: ititle + ' ' + urls + '\n\n' + text
+              hash: hash
+              seen: seen
+            toFill--
+            if 0 == toFill
+              userManager.getBySubscription feed.id, (user) ->
+                user.deliverFeed parsed_articles, initiator==user.jid
+              onScanDone()
+        ###
         for article in articles
           console.log '-----'
           console.log outString(article.title) + ': '
           console.log outString(article.description)
-        return onScanDone()
+          console.dir article
+        ###
 
 onEndScan = ->
   if !autoScan || workers
@@ -120,7 +178,7 @@ setScanInterval = (interval) ->
   else
     autoScan = nulls
 
-scanFeeds = ->
+scanFeeds = (initiator) ->
   console.log 'Scanning feeds'
   s = tables.subscriptions
   sql = s.select(s.star()).from(s)
@@ -128,7 +186,7 @@ scanFeeds = ->
   workers++
   #console.log sql.toQuery()
   database.query(sql.toQuery()).on('row', (row) ->
-    doScanFeed row
+    doScanFeed row, initiator
   ).on('end', ->
     workers--
     onEndScan()
@@ -136,9 +194,10 @@ scanFeeds = ->
 
 
 module.exports =
-  init: (db, xmpp_, interval) ->
+  init: (db, xmpp_, interval, usermgr) ->
     database = db
     xmpp = xmpp_
+    userManager = usermgr
     setScanInterval interval
 
   scanFeeds: ->
