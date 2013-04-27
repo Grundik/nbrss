@@ -92,7 +92,7 @@ class User
     console.dir feed
     for f in feed
       if !f.seen || all
-        xmpp.send @jid, f.subject+'\n'+f.message
+        xmpp.send @jid, f.title+'\n'+f.message
 
 getUser = (jid, cb) ->
   if users[jid]

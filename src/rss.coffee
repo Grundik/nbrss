@@ -68,19 +68,19 @@ checkSeen = (feed, hash, cb) ->
     return cb true
 
   mh = tables.messageHash
-  seen_sql =  m.select(m.time).from(m)
-               .where(m.mhash.equals(hash))
-               .and(m.subscription_id.equals(feed.id))
+  seen_sql =  mh.select(mh.time).from(mh)
+               .where(mh.mhash.equals(hash))
+               .and(mh.subscription_id.equals(feed.id))
                .limit(1)
+  seenCache.push hash
   database.query(seen_sql.toQuery()).on 'end', (res) ->
     if res && res.length
-      seenCache.push hash
-      insert = mh.insert
-        time: 'now'
-        subscription_id: feed.id
-        mhash: hash
-      database.query insert.toQuery()
       return cb true
+    insert = mh.insert
+      time: 'now'
+      subscription_id: feed.id
+      mhash: hash
+    database.query insert.toQuery()
     cb false
   null
 
@@ -139,7 +139,7 @@ doScanFeed = (feed, initiator) ->
         toFill = articles.length
         console.log 'Got ' + toFill + ' articles'
 
-        onFeedParsed = () ->
+        onArticleParsed = () ->
           if 0 == toFill
             console.log 'Sending messages to users...'
             userManager.getBySubscription feed.id, (user) ->
@@ -151,20 +151,23 @@ doScanFeed = (feed, initiator) ->
             toFill--
             onArticleParsed()
             continue
-          urls = cleanHtml(article.link || '')
-          ititle = cleanHtml(article.title || '')
-          text = cleanHtml(article.description || '')
-          hash = md5 title + ititle + urls + text
-          seen = false
-          checkSeen feed, hash, (seen) ->
-            toFill--
-            console.log (if seen then 'S' else 'Uns')+'een article ('+toFill+' to go): '+title+'\n\n'+message
-            parsed_articles.push
-              title: title
-              message: ititle + ' ' + urls + '\n\n' + text
-              hash: hash
-              seen: seen
-            onArticleParsed()
+          (->
+            urls = cleanHtml(article.link || '')
+            ititle = cleanHtml(article.title || '')
+            text = cleanHtml(article.description || '')
+            message = ititle + ' ' + urls + '\n\n' + text
+            hash = md5 message
+            seen = false
+            checkSeen feed, hash, (seen) ->
+              toFill--
+              console.log (if seen then 'S' else 'Uns')+'een article ('+toFill+' to go): '+title+'\n\n'+message
+              parsed_articles.push
+                title: title
+                message: message
+                hash: hash
+                seen: seen
+              onArticleParsed()
+          )()
         null
         ###
         for article in articles
