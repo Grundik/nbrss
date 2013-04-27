@@ -35,12 +35,15 @@ xmpp.on 'chat', (from, message) ->
         xmpp.send from, 'Подписка на ' + args + ' ' +
                         (if exists then 'добавлена' else 'уже есть') +
                         ' (' + s.id + ')'
+        if !exists
+          feedmgr.scanFeed(args, user)
     else if 'unsubscribe' == cmd
       user.delSubscription args, (exists) ->
         xmpp.send from, 'Подписка на ' + args + ' ' +
                         (if exists then 'удалена' else 'отсутствовала')
     else
       xmpp.send from, 'Нипаняяятна: ' + message
+      xmpp.send from, 'Возможные команды: list, subscribe, unsubscribe'
 
 xmpp.on 'error', (err) ->
   console.error err

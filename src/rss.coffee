@@ -160,7 +160,7 @@ doScanFeed = (feed, initiator) ->
             seen = false
             checkSeen feed, hash, (seen) ->
               toFill--
-              console.log (if seen then 'S' else 'Uns')+'een article ('+toFill+' to go): '+title+'\n\n'+message
+              #console.log (if seen then 'S' else 'Uns')+'een article ('+toFill+' to go): '+title+'\n\n'+message
               parsed_articles.push
                 title: title
                 message: message
@@ -192,11 +192,13 @@ setScanInterval = (interval) ->
   else
     autoScan = nulls
 
-scanFeeds = (initiator) ->
+scanFeeds = (initiator, url) ->
   console.log 'Scanning feeds'
   s = tables.subscriptions
   sql = s.select(s.star()).from(s)
         .where('(SELECT COUNT(*) FROM subscriptions_users AS su WHERE su.subscription_id=subscriptions.id)>0')
+  if url
+    sql.and(s.url.equals(url))
   workers++
   #console.log sql.toQuery()
   database.query(sql.toQuery()).on('row', (row) ->
@@ -214,9 +216,13 @@ module.exports =
     userManager = usermgr
     setScanInterval interval
 
-  scanFeeds: ->
+  scanFeeds: (initiator)->
     scanDisabled = false
-    scanFeeds()
+    scanFeeds(initiator)
+
+  scanFeed: (url, initiator)->
+    if !scanDisabled
+      scanFeeds(initiator, url)
 
   stopScan: ->
     clearTimeout timeoutHandle

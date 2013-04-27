@@ -89,7 +89,7 @@ class User
           cb(false) if cb
 
   deliverFeed: (feed, all) ->
-    console.dir feed
+    #console.dir feed
     for f in feed
       if !f.seen || all
         xmpp.send @jid, f.title+'\n'+f.message

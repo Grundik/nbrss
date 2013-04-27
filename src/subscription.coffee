@@ -40,5 +40,5 @@ module.exports =
       cb subscriptions[url]
     else
       subscriptions[url] = new Subscription(url, cb)
-      getSub()
+
 
