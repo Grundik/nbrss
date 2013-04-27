@@ -89,6 +89,7 @@ class User
           cb(false) if cb
 
   deliverFeed: (feed, all) ->
+    console.dir feed
     for f in feed
       if !f.seen || all
         xmpp.send @jid, f.subject+'\n'+f.message
@@ -106,6 +107,7 @@ getBySubscription = (subscription_id, cb) ->
     sql = u.select(u.jid).from(u.join(su).on(u.id.equals(su.user_id)))
            .where(su.subscription_id.equals(subscription_id))
     database.query(sql.toQuery()).on('row', (row) =>
+      console.log row.jid + ' is subscribed to ' + subscription_id
       getUser(row.jid, cb)
     )
 

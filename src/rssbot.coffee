@@ -12,7 +12,7 @@ shutdown = () ->
 
 xmpp.on 'online', ->
   console.log 'XMPP connected'
-  feedmgr.scanFeeds
+  feedmgr.scanFeeds()
 
 xmpp.on 'chat', (from, message) ->
   message = message.trim()
@@ -44,7 +44,7 @@ xmpp.on 'chat', (from, message) ->
 
 xmpp.on 'error', (err) ->
   console.error err
-  feedmgr.stopScan
+  feedmgr.stopScan()
 
 xmpp.on 'subscribe', (from) ->
   console.log 'Accepting subscribe request from '+from
@@ -57,16 +57,13 @@ usermgr.init database, xmpp
 
 feedmgr.init database, xmpp, 5*60000, usermgr
 subsmgr.init database, ->
-  feedmgr.scanFeeds()
-###
   xmpp.connect
     jid         : CONFIG.xmpp.jid
     password    : CONFIG.xmpp.password
     host        : CONFIG.xmpp.host
     port        : CONFIG.xmpp.port || 5222
-###
-
+  xmpp.getRoster()
 
 #xmpp.subscribe 'your.friend@gmail.com'
 # check for incoming subscription requests
-xmpp.getRoster();
+

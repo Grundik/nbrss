@@ -32,7 +32,7 @@ module.exports =
     database.query(sql.toQuery()).on('row', (row) ->
       subscriptions[row.url] = row
     ).on('end', ->
-      cb()
+      cb() if cb
     )
 
   getSubscription: (url, cb) ->
