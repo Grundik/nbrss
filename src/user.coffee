@@ -103,7 +103,7 @@ getBySubscription = (subscription_id, cb) ->
     u = tables.users
     su = tables.subscriptionsUsers
     s = tables.subscriptions
-    sql = u.select(u.jid()).from(u.join(su).on(u.id.equals(su.user_id)))
+    sql = u.select(u.jid).from(u.join(su).on(u.id.equals(su.user_id)))
            .where(su.subscription_id.equals(subscription_id))
     database.query(sql.toQuery()).on('row', (row) =>
       getUser(row.jid, cb)
