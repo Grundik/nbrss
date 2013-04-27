@@ -80,7 +80,9 @@ checkSeen = (feed, hash, cb) ->
       time: 'now'
       subscription_id: feed.id
       mhash: hash
-    database.query insert.toQuery()
+    database.query(insert.toQuery()).on('error', ->
+      null
+    )
     cb false
   null
 
