@@ -15,3 +15,8 @@ module.exports =
     name: 'subscriptions_users'
     columns: ['user_id', 'subscription_id']
   )
+
+  messageHash: sql.define(
+    name: 'message_hashes'
+    columns: ['mhash', 'time', 'subscription_id']
+  )
