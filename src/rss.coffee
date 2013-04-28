@@ -74,13 +74,13 @@ checkSeen = (feed, hash, cb) ->
                .and(mh.subscription_id.equals(feed.id))
                .limit(1)
   seenCache.push hash
-  console.log 'Inserting seen hash '+hash+' on subscription '+feed.id
   seen = false
   database.query(seen_sql.toQuery()).on('row', ->
     seen = true
   ).on('end', () ->
     if seen
       return cb true
+    console.log 'Inserting seen hash '+hash+' on subscription '+feed.id
     insert = mh.insert
       time: 'now'
       subscription_id: feed.id
