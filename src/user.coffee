@@ -1,4 +1,4 @@
-sql = require 'sql'
+sqlBuilder = require 'sql'
 subsmgr = require './subscription'
 
 users = {}
@@ -13,10 +13,10 @@ class User
     @access = 0
     @id = 0
     u = tables.users
-    sql = u.select(u.star()).from(u).where(u.jid.equals(@jid)).limit(1).toQuery()
+    sql = u.select(u.star()).from(u).where(u.jid.equals(@jid)).limit(1)
     #console.log sql
     found = false
-    database.query(sql).on('row', (row) =>
+    database.query(sql.toQuery()).on('row', (row) =>
       @access = row.access
       @id = row.id
       found = true
@@ -28,7 +28,7 @@ class User
         # console.log insertsql.toQuery()
         database.query(insertsql.toQuery()).on('end', =>
           # определяем назначенный id
-          database.query(sql).on('row', (row) =>
+          database.query(sql.toQuery()).on('row', (row) =>
             @id = row.id
           ).on('end', =>
             cb(this) if cb
