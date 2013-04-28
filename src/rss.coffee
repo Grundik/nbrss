@@ -137,7 +137,7 @@ class Scanner
         #console.log(string_data)
         cb string_data if cb
 
-  _processFeed: (string_data, initiator, cb) ->
+  _processFeed: (feed, string_data, initiator, cb) ->
     string_data = string_data.replace /encoding=(['"]?[a-z0-9-]+['"]?)/i, 'encoding="utf-8"'
     #console.log(string_data)
     Feedparser.parseString string_data, (error, meta, articles) ->
@@ -191,7 +191,7 @@ class Scanner
     @_fetchUrl url, (string_data) =>
       if !string_data
         return @_onScanDone()
-      @_processFeed string_data, initiator, =>
+      @_processFeed feed, string_data, initiator, =>
         return @_onScanDone()
 
 setScanInterval = (interval) ->
