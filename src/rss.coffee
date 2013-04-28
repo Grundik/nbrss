@@ -102,7 +102,7 @@ class Scanner
     null
 
   _fetchUrl: (url, cb) ->
-    cache_file = './cache/'+md5(url)
+    cache_file = './cache/'+MD5(url)
     FS.stat cache_file, (err, stat) ->
       rdata =
         url: url
@@ -126,7 +126,7 @@ class Scanner
         if response && response.headers && response.headers['content-type']
           conv = initConvert response.headers['content-type']
         string_data = getString body, conv
-        newdata = md5(new Buffer string_data)
+        newdata = MD5(new Buffer string_data)
         console.log "New MD5=#{newdata}"
         if olddata && olddata == newdata
           console.log "Feed not changed"
