@@ -1,27 +1,27 @@
 Feedparser = require 'feedparser'
 Iconv = (require 'iconv').Iconv
-request = require 'request'
-crypto = require 'crypto'
+Request = require 'request'
+Crypto = require 'crypto'
 sql = require 'sql'
-fs = require 'fs'
+FS = require 'fs'
 
 Entities = require('html-entities')
 xmlentities = new Entities.XmlEntities();
 htmlentities = new Entities.AllHtmlEntities();
 
 tables = require './tables'
+subsmgr = require './subscription'
 
 database = null
 xmpp = null
 timeoutHandle = null
-workers = 0
 autoScan = null
 scanDisabled = false
 userManager = null
 seenCache = []
 
-md5 = (data) ->
-  hash = crypto.createHash 'md5'
+MD5 = (data) ->
+  hash = Crypto.createHash 'md5'
   hash.update data
   hash.digest 'hex'
 
@@ -92,106 +92,107 @@ checkSeen = (feed, hash, cb) ->
   )
   null
 
-onScanDone = ->
-  workers--
-  onEndScan()
-  null
+class Scanner
+  constructor: (feed, initiator, @onEnd) ->
+    @doScanFeed feed, initiator
+    null
 
-doScanFeed = (feed, initiator) ->
-  workers++
-  url = feed.url
-  console.log 'Scanning feed '+url
-  cache_file = './cache/'+md5(url)
-  fs.stat cache_file, (err, stat) ->
-    rdata =
-      url: url
-      headers: {}
-      encoding: null
-    olddata = null
-    if !err && stat && stat.mtime
-      rdata.headers['if-modified-since'] = stat.mtime.toUTCString()
-      olddata = md5 fs.readFileSync(cache_file)
-      console.log "Old mtime=#{rdata.headers['if-modified-since']}"
-      console.log "Old MD5=#{olddata}"
-    request rdata, (error, response, body) ->
-      if error
-        console.log error
-        return onScanDone()
-      if response.statusCode != 200
-        console.log "Got #{response.statusCode} status"
-        return onScanDone()
-      #fs.writeFile cache_file, body
-      if response && response.headers && response.headers['content-type']
-        conv = initConvert response.headers['content-type']
-      string_data = getString body, conv
-      newdata = md5(new Buffer string_data)
-      console.log "New MD5=#{newdata}"
-      if olddata && olddata == newdata
-        console.log "Feed not changed"
-        return onScanDone()
-      fs.writeFile cache_file, string_data
-      string_data = string_data.replace /encoding=(['"]?[a-z0-9-]+['"]?)/i, 'encoding="utf-8"'
-      #console.log(string_data)
-      Feedparser.parseString string_data, (error, meta, articles) ->
-        #console.dir meta
-        charset = null
+  _onScanDone: ->
+    @onEnd() if @onEnd
+    null
 
-        if !articles
-          return onScanDone()
+  _fetchUrl: (url, cb) ->
+    cache_file = './cache/'+md5(url)
+    FS.stat cache_file, (err, stat) ->
+      rdata =
+        url: url
+        headers: {}
+        encoding: null
+      olddata = null
+      if !err && stat && stat.mtime
+        rdata.headers['if-modified-since'] = stat.mtime.toUTCString()
+        olddata = MD5 FS.readFileSync(cache_file)
+        console.log "Old mtime=#{rdata.headers['if-modified-since']}"
+        console.log "Old MD5=#{olddata}"
+      Request rdata, (error, response, body) =>
+        if error
+          console.log error
+          cb false if cb
+          return
+        if response.statusCode != 200
+          console.log "Got #{response.statusCode} status"
+          cb false if cb
+          return
+        if response && response.headers && response.headers['content-type']
+          conv = initConvert response.headers['content-type']
+        string_data = getString body, conv
+        newdata = md5(new Buffer string_data)
+        console.log "New MD5=#{newdata}"
+        if olddata && olddata == newdata
+          console.log "Feed not changed"
+          cb false if cb
+          return
+        fs.writeFile cache_file, string_data
+        string_data = string_data.replace /encoding=(['"]?[a-z0-9-]+['"]?)/i, 'encoding="utf-8"'
+        #console.log(string_data)
+        cb string_data if cb
 
-        parsed_articles = []
-        title = (meta.title or '') + ' ' + (meta.description or '')
-        if meta.link
-          title += ' '+meta.link
-        title = cleanHtml(title)
-        toFill = articles.length
-        console.log 'Got ' + toFill + ' articles'
+  _processFeed: (string_data, initiator, cb) ->
+    string_data = string_data.replace /encoding=(['"]?[a-z0-9-]+['"]?)/i, 'encoding="utf-8"'
+    #console.log(string_data)
+    Feedparser.parseString string_data, (error, meta, articles) ->
+      #console.dir meta
 
-        onArticleParsed = () ->
-          if 0 == toFill
-            console.log 'Sending messages to users...'
-            userManager.getBySubscription feed.id, (user) ->
-              user.deliverFeed parsed_articles, initiator == user.jid
-            onScanDone()
+      if !articles
+        cb false if cb
+        return
 
-        for article in articles.reverse()
-          if  !article
-            toFill--
+      parsed_articles = []
+      title = (meta.title or '') + ' ' + (meta.description or '')
+      if meta.link
+        title += ' '+meta.link
+      title = cleanHtml(title)
+      toFill = articles.length
+      console.log 'Got ' + toFill + ' articles'
+
+      onArticleParsed = () ->
+        toFill--
+        if 0 == toFill
+          console.log 'Sending messages to users...'
+          userManager.getBySubscription feed.id, (user) ->
+            user.deliverFeed parsed_articles, initiator == user.jid
+          cb true if cb
+
+      for article in articles.reverse()
+        if  !article
+          onArticleParsed()
+          continue
+        (->
+          urls = cleanHtml(article.link || '')
+          ititle = cleanHtml(article.title || '')
+          text = cleanHtml(article.description || '')
+          message = ititle + ' ' + urls + '\n\n' + text
+          hash = MD5 message
+          seen = false
+          checkSeen feed, hash, (seen) ->
+            #console.log (if seen then 'S' else 'Uns')+'een article ('+toFill+' to go): '+title+'\n\n'+message
+            parsed_articles.push
+              title: title
+              message: message
+              hash: hash
+              seen: seen
             onArticleParsed()
-            continue
-          (->
-            urls = cleanHtml(article.link || '')
-            ititle = cleanHtml(article.title || '')
-            text = cleanHtml(article.description || '')
-            message = ititle + ' ' + urls + '\n\n' + text
-            hash = md5 message
-            seen = false
-            checkSeen feed, hash, (seen) ->
-              toFill--
-              #console.log (if seen then 'S' else 'Uns')+'een article ('+toFill+' to go): '+title+'\n\n'+message
-              parsed_articles.push
-                title: title
-                message: message
-                hash: hash
-                seen: seen
-              onArticleParsed()
-          )()
-        null
-        ###
-        for article in articles
-          console.log '-----'
-          console.log outString(article.title) + ': '
-          console.log outString(article.description)
-          console.dir article
-        ###
+        )()
+      null
 
-onEndScan = ->
-  if !autoScan || workers
-    return
-  clearTimeout timeoutHandle
-  if scanDisabled
-    return
-  timeoutHandle = setTimeout scanFeeds, autoScan
+  doScanFeed: (feed, initiator) ->
+    url = feed.url
+    console.log 'Scanning feed '+url
+    @_fetchUrl url, (string_data) =>
+      if !string_data
+        return @_onScanDone()
+      @_processFeed string_data, initiator, =>
+        return @_onScanDone()
 
 setScanInterval = (interval) ->
   interval = Number interval
@@ -200,22 +201,30 @@ setScanInterval = (interval) ->
   else
     autoScan = nulls
 
-scanFeeds = (initiator, url) ->
+scanFeeds = () ->
   console.log 'Scanning feeds'
   s = tables.subscriptions
   sql = s.select(s.star()).from(s)
         .where('(SELECT COUNT(*) FROM subscriptions_users AS su WHERE su.subscription_id=subscriptions.id)>0')
-  if url
-    sql.and(s.url.equals(url))
-  workers++
+
+  workers = 1
   #console.log sql.toQuery()
+
+  onEndScan = ->
+    if workers
+      return
+    clearTimeout timeoutHandle
+    if autoScan && !scanDisabled
+      timeoutHandle = setTimeout scanFeeds, autoScan
+
   database.query(sql.toQuery()).on('row', (row) ->
-    doScanFeed row, initiator
+    new Scanner row, null, ->
+      workers--
+      onEndScan()
   ).on('end', ->
     workers--
     onEndScan()
   )
-
 
 module.exports =
   init: (db, xmpp_, interval, usermgr) ->
@@ -224,13 +233,13 @@ module.exports =
     userManager = usermgr
     setScanInterval interval
 
-  scanFeeds: (initiator)->
+  scanFeeds: ->
     scanDisabled = false
-    scanFeeds(initiator)
+    scanFeeds()
 
-  scanFeed: (url, initiator)->
-    if !scanDisabled
-      scanFeeds(initiator, url)
+  scanFeed: (url, initiator) ->
+    subsmgr.getSubscription url, (s) =>
+      new Scanner s, initiator
 
   stopScan: ->
     clearTimeout timeoutHandle

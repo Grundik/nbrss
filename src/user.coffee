@@ -12,6 +12,7 @@ class User
   constructor: (@jid, cb) ->
     @access = 0
     @id = 0
+    @subscriptions = null
     u = tables.users
     sql = u.select(u.star()).from(u).where(u.jid.equals(@jid)).limit(1)
     #console.log sql

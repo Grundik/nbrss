@@ -36,7 +36,7 @@ xmpp.on 'chat', (from, message) ->
                         (if exists then 'добавлена' else 'уже есть') +
                         ' (' + s.id + ')'
         if !exists
-          feedmgr.scanFeed(s.url, user)
+          feedmgr.scanFeed(s.url, user.jid)
     else if 'unsubscribe' == cmd
       user.delSubscription args, (exists) ->
         xmpp.send from, 'Подписка на ' + args + ' ' +
