@@ -6,8 +6,8 @@ sql = require 'sql'
 fs = require 'fs'
 
 Entities = require('html-entities')
-xmlentities = new Entities.XmlEntities.Entities();
-htmlentities = new Entities.AllHtmlEntities.Entities();
+xmlentities = new Entities.XmlEntities();
+htmlentities = new Entities.AllHtmlEntities();
 
 tables = require './tables'
 
