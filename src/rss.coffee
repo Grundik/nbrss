@@ -132,7 +132,7 @@ class Scanner
           console.log "Feed not changed"
           cb false if cb
           return
-        fs.writeFile cache_file, string_data
+        FS.writeFile cache_file, string_data
         string_data = string_data.replace /encoding=(['"]?[a-z0-9-]+['"]?)/i, 'encoding="utf-8"'
         #console.log(string_data)
         cb string_data if cb
