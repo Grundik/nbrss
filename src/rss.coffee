@@ -73,6 +73,7 @@ checkSeen = (feed, hash, cb) ->
                .and(mh.subscription_id.equals(feed.id))
                .limit(1)
   seenCache.push hash
+  console.log 'Inserting seen hash '+hash+' on subscription '+feed.id
   database.query(seen_sql.toQuery()).on 'end', (res) ->
     if res && res.length
       return cb true
@@ -80,8 +81,8 @@ checkSeen = (feed, hash, cb) ->
       time: 'now'
       subscription_id: feed.id
       mhash: hash
-    database.query(insert.toQuery()).on('error', ->
-      null
+    database.query(insert.toQuery()).on('error', (msg)->
+      console.log 'Error: '+msg
     )
     cb false
   null
