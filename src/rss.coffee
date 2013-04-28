@@ -5,8 +5,9 @@ crypto = require 'crypto'
 sql = require 'sql'
 fs = require 'fs'
 
-Entities = require('html-entities').XmlEntities
-entities = new Entities();
+Entities = require('html-entities')
+xmlentities = new Entities.XmlEntities.Entities();
+htmlentities = new Entities.AllHtmlEntities.Entities();
 
 tables = require './tables'
 
@@ -41,7 +42,7 @@ cleanHtml = (str) ->
              .replace(/\s*<xhtml:link[^>]*href\s*=\s*['"]([^'"]+)['"][^>]*\/>\s*/ig, " \\1 ")
              .replace(/\s+<\/?[^>]*>\s*/mg, " ") # вырезает все теги обрамленные пробелами вместе с этими пробелами
              .replace(/<\/?[^>]*>/mg, "") # вырезает ваще все теги
-    str = entities.decode str
+    str = htmlentities.decode str
     str = str.replace(/\r/g, "\n")
              .replace(/\n\s*\n/g, "\n")
     str
@@ -61,7 +62,7 @@ initConvert = (ctype) ->
 
 outString = (str) ->
    str = str.replace /<br\s*\/?>/ig, '\n'
-   entities.decode str
+   xmlentities.decode str
 
 checkSeen = (feed, hash, cb) ->
   if seenCache.indexOf(hash) >= 0
