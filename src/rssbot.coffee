@@ -58,7 +58,7 @@ xmpp.on 'subscribe', (from) ->
 database = anyDB.createConnection CONFIG.db.adapter+'://' + CONFIG.db.user + ':' + CONFIG.db.password + '@' + CONFIG.db.host + '/' + CONFIG.db.name
 usermgr.init database, xmpp
 
-feedmgr.init database, xmpp, 5*60000, usermgr
+feedmgr.init database, xmpp, 60*60000, usermgr
 subsmgr.init database, ->
   xmpp.connect
     jid         : CONFIG.xmpp.jid
